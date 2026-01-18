@@ -22,8 +22,3 @@ export async function getClient(account?: `0x${string}`): Promise<Client> {
 
   return client
 }
-
-export function clearCachedClient(): void {
-  cachedClient = null
-  initializePromise = null
-}

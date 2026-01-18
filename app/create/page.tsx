@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,42 +10,35 @@ import { postCase, getNextCaseId } from '@/lib/contract'
 import { toast } from 'sonner'
 
 export default function CreatePage() {
-  const router = useRouter()
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [txHash, setTxHash] = useState('')
   const [createdCaseId, setCreatedCaseId] = useState<number | null>(null)
 
   const handleCreateCase = async () => {
-    if (!question.trim()) {
-      toast.error('Please enter a case question')
+    const q = question.trim()
+    if (q.length < 5) {
+      toast.error('Question is too short (min 5 characters)')
       return
     }
 
     setLoading(true)
+    const toastId = toast.loading('Submitting case to blockchain...')
+
     try {
-      // Check if wallet is connected
       let account = await getConnectedWallet()
-      if (!account) {
-        // Try to connect
-        account = await connectWallet()
-      }
+      if (!account) account = await connectWallet()
 
-      toast.loading('Submitting case to blockchain...')
-
-      const result = await postCase(account, question)
+      const result = await postCase(account, q)
       setTxHash(result.txHash)
 
-      // Get the next case ID (which is the ID of the case we just created)
       const nextId = await getNextCaseId()
       const caseId = nextId - 1
       setCreatedCaseId(caseId)
 
-      toast.success(
-        `Case created successfully! Case ID: ${caseId}`
-      )
+      toast.success(`Case created successfully! Case ID: ${caseId}`, { id: toastId })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create case')
+      toast.error(error instanceof Error ? error.message : 'Failed to create case', { id: toastId })
     } finally {
       setLoading(false)
     }
@@ -82,7 +74,7 @@ export default function CreatePage() {
 
                   <Button
                     onClick={handleCreateCase}
-                    disabled={loading || !question.trim()}
+                    disabled={loading || question.trim().length < 5}
                     size="lg"
                     className="w-full"
                   >

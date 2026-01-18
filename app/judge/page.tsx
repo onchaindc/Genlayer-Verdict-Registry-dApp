@@ -36,7 +36,7 @@ export default function JudgePage() {
     setLoading(true)
     try {
       const id = parseInt(caseId, 10)
-      if (isNaN(id)) {
+      if (isNaN(id) || id <= 0) {
         toast.error('Invalid case ID')
         return
       }
@@ -59,30 +59,28 @@ export default function JudgePage() {
   }
 
   const handleSubmitVerdict = async () => {
-    if (!caseData || !reasoning.trim()) {
-      toast.error('Please provide reasoning for your verdict')
+    if (!caseData) {
+      toast.error('Please load a case first')
+      return
+    }
+    if (!reasoning.trim() || reasoning.trim().length < 5) {
+      toast.error('Reasoning is too short (min 5 characters)')
       return
     }
 
     setSubmitting(true)
+    const toastId = toast.loading('Submitting verdict...')
+
     try {
       let account = await getConnectedWallet()
-      if (!account) {
-        account = await connectWallet()
-      }
+      if (!account) account = await connectWallet()
 
-      toast.loading('Submitting verdict...')
-
-      const result = await submitVerdict(
-        account,
-        caseData.id,
-        verdict,
-        reasoning
-      )
+      const result = await submitVerdict(account, caseData.id, verdict, reasoning.trim())
       setTxHash(result.txHash)
-      toast.success('Verdict submitted successfully!')
+
+      toast.success('Verdict submitted successfully!', { id: toastId })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to submit verdict')
+      toast.error(error instanceof Error ? error.message : 'Failed to submit verdict', { id: toastId })
     } finally {
       setSubmitting(false)
     }
@@ -95,19 +93,20 @@ export default function JudgePage() {
     }
 
     setSubmitting(true)
+    const toastId = toast.loading('Requesting AI judgment...')
+
     try {
       let account = await getConnectedWallet()
-      if (!account) {
-        account = await connectWallet()
-      }
-
-      toast.loading('Requesting AI judgment...')
+      if (!account) account = await connectWallet()
 
       const result = await aiJudge(account, caseData.id)
       setTxHash(result.txHash)
-      toast.success('AI judgment requested! Click refresh to see the result.')
+
+      toast.success('AI judgment requested! It may take a bit—click Refresh Case in a moment.', {
+        id: toastId,
+      })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to request AI judgment')
+      toast.error(error instanceof Error ? error.message : 'Failed to request AI judgment', { id: toastId })
     } finally {
       setSubmitting(false)
     }
@@ -120,7 +119,7 @@ export default function JudgePage() {
       const updatedData = await getCase(caseData.id)
       if (updatedData) {
         setCaseData(updatedData)
-        setTxHash('')
+        // keep txHash visible; don't wipe it automatically
         toast.success('Case updated')
       }
     } catch (error) {
@@ -159,7 +158,7 @@ export default function JudgePage() {
                 placeholder="Enter case ID..."
                 value={caseId}
                 onChange={(e) => setCaseId(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLoadCase()}
+                onKeyDown={(e) => e.key === 'Enter' && handleLoadCase()}
                 disabled={loading}
               />
               <Button onClick={handleLoadCase} disabled={loading}>
@@ -256,7 +255,7 @@ export default function JudgePage() {
                       <div className="flex flex-col gap-2 pt-2 sm:flex-row">
                         <Button
                           onClick={handleSubmitVerdict}
-                          disabled={submitting || !reasoning.trim()}
+                          disabled={submitting || reasoning.trim().length < 5}
                           className="flex-1"
                         >
                           {submitting ? 'Submitting...' : 'Submit Verdict'}
@@ -281,15 +280,18 @@ export default function JudgePage() {
                     <div className="space-y-2">
                       <div className="rounded-lg bg-green-50 p-4 dark:bg-green-950">
                         <p className="text-sm font-semibold text-green-900 dark:text-green-100">
-                          ✓ Transaction Submitted Successfully
+                          ✓ Transaction Submitted
+                        </p>
+                        <p className="text-xs text-green-900/80 dark:text-green-100/80">
+                          If this was AI Judge, it may take a bit for the verdict to appear. Try Refresh Case.
                         </p>
                       </div>
                       <p className="text-xs text-muted-foreground">Transaction Hash:</p>
                       <p className="break-all rounded bg-muted p-3 font-mono text-xs">
                         {txHash}
                       </p>
-                      <Button onClick={handleRefreshCase} className="mt-4 w-full">
-                        Refresh Case
+                      <Button onClick={handleRefreshCase} className="mt-4 w-full" disabled={loading}>
+                        {loading ? 'Refreshing...' : 'Refresh Case'}
                       </Button>
                     </div>
                   </>
